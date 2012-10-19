@@ -24,6 +24,7 @@ volatile uint32_t adc_buffer_pos;
 
 void filt_adc_init( uint32_t ADC_Clk )
 {
+	int div;
   /* Disable Power down bit to the ADC block. */  
   LPC_SYSCON->PDRUNCFG &= ~(0x1<<4);
 
@@ -55,7 +56,12 @@ void filt_adc_init( uint32_t ADC_Clk )
 	LPC_IOCON->PIO1_11				= 0x01;	// Select AD7 pin function
 #endif
 
-LPC_ADC->CR = (((SystemCoreClock/LPC_SYSCON->SYSAHBCLKDIV)/ADC_Clk-1) & 0xFF )<<8;
+	div = ((SystemCoreClock/LPC_SYSCON->SYSAHBCLKDIV)/ADC_Clk-1);
+	if (div > 255)
+		LPC_ADC->CR = 0xFF << 8;
+	else
+		LPC_ADC->CR = div << 8;
+//LPC_ADC->CR = (((SystemCoreClock/LPC_SYSCON->SYSAHBCLKDIV)/ADC_Clk-1) & 0xFF )<<8;
 
 LPC_ADC->INTEN = 0x8; /* Interrupt on the third so that the rest should be done */
 LPC_ADC->CR |= ( (0<<24) | (1<<16) | (0x0F));
@@ -83,9 +89,9 @@ NVIC_EnableIRQ(ADC_IRQn);
 }
 void ADC_IRQHandler(void)
 {
-	volatile uint32_t reg;
-	reg = LPC_ADC->STAT;
-	//LPC_ADC->STAT;
+	//volatile uint32_t reg;
+	//reg = LPC_ADC->STAT;
+	LPC_ADC->STAT;
 	ADCVal0[adc_buffer_pos] = (LPC_ADC->DR0 >> 6 ) & 0x3FF;
 	ADCVal1[adc_buffer_pos] = (LPC_ADC->DR1 >> 6 ) & 0x3FF;
 	ADCVal2[adc_buffer_pos] = (LPC_ADC->DR2 >> 6 ) & 0x3FF;
