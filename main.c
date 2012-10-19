@@ -2,70 +2,24 @@
 #include "LPC13xx.h"
 #include "stdio.c"
 #include "uart.h"
-#include "adc.h" 
 #include "filt_adc.h" 
 #include "pwm.h" 
+#include "h2rgb.h"
 
-#include <math.h>
+#define MAX(a,b) (((a)>(b))?(a):(b))
+#define WFI asm volatile ("wfi");
+#define RAMP_DOWN_TIME_MS (1000)
+#define RGB_POWER_OFF_TIME_MS (10*1000)
+#define W_POWER_OFF_TIME_MS (5*1000)
 
+#define OFF_SWITCH (2)
+#define WW_SWITCH (3)
+#define RGB_SWITCH (1)
 
-
-
-
-
-
-void HardFault_Handler( void )
-{
-__asm__("TST LR, #4\n\t"
-		"ITE EQ\n\t"
-		"MRSEQ R0, MSP\n\t"
-		"MRSNE R0, PSP\n\t"
-		"B hard_fault_handler_c\n\t");
-}
-
-void hard_fault_handler_c (unsigned int * hardfault_args)
-{
-  unsigned int stacked_r0;
-  unsigned int stacked_r1;
-  unsigned int stacked_r2;
-  unsigned int stacked_r3;
-  unsigned int stacked_r12;
-  unsigned int stacked_lr;
-  unsigned int stacked_pc;
-  unsigned int stacked_psr;
- 
-  stacked_r0 = ((unsigned long) hardfault_args[0]);
-  stacked_r1 = ((unsigned long) hardfault_args[1]);
-  stacked_r2 = ((unsigned long) hardfault_args[2]);
-  stacked_r3 = ((unsigned long) hardfault_args[3]);
- 
-  stacked_r12 = ((unsigned long) hardfault_args[4]);
-  stacked_lr = ((unsigned long) hardfault_args[5]);
-  stacked_pc = ((unsigned long) hardfault_args[6]);
-  stacked_psr = ((unsigned long) hardfault_args[7]);
- 
-  printf ("\n\n[Hard fault handler - all numbers in hex]\n");
-  printf ("R0 = %x\n", stacked_r0);
-  printf ("R1 = %x\n", stacked_r1);
-  printf ("R2 = %x\n", stacked_r2);
-  printf ("R3 = %x\n", stacked_r3);
-  printf ("R12 = %x\n", stacked_r12);
-  printf ("LR [R14] = %x  subroutine call return address\n", stacked_lr);
-  printf ("PC [R15] = %x  program counter\n", stacked_pc);
-  printf ("PSR = %x\n", stacked_psr);
-  printf ("BFAR = %x\n", (*((volatile unsigned long *)(0xE000ED38))));
-  printf ("CFSR = %x\n", (*((volatile unsigned long *)(0xE000ED28))));
-  printf ("HFSR = %x\n", (*((volatile unsigned long *)(0xE000ED2C))));
-  printf ("DFSR = %x\n", (*((volatile unsigned long *)(0xE000ED30))));
-  printf ("AFSR = %x\n", (*((volatile unsigned long *)(0xE000ED3C))));
-  printf ("SCB_SHCSR = %x\n", SCB->SHCSR);
- 
-  while (1);
-}
-  
-
-
-
+#define RED_POT (0)
+#define GREEN_POT (1)
+#define BLUE_POT (2)
+#define WW_POT (3)
 
 
 volatile uint32_t msTicks = 0;
@@ -90,153 +44,271 @@ void delay_ms(uint32_t ms) {
 		;
 }
 
-void Custom_Init() {
-	/* Setup Blue Blink LED */
-	LPC_GPIO2->DIR |= (1<<10);
+void initSwitch()
+{
+	// Set all 4 as GPI/O
+	LPC_IOCON->SWDIO_PIO1_3 = 0x91;
+	LPC_IOCON->PIO2_3 = 0x10;
+	LPC_IOCON->PIO3_0 = 0x10;
+	LPC_IOCON->PIO3_1 = 0x10;
+	//No need to touch the DIR reg since it should be IN
 }
 
-
-void h2rgb(int H, uint8_t *red, uint8_t *green , uint8_t *blue) {
-	int i = H - ( H % 40 );
-	int f= H - i;
-	if((i/40)%2 == 0) f=40-f;
-	int n = (6*(40-f)*255)/240;
-	switch(i)
+int8_t getSwitch(int num)
+{
+	switch (num)
 	{
-		case 240:
-		case 0:  
-		
-			*red = 255;
-			*green = n;
-			*blue =0;
+		case 0:
+			return (LPC_GPIO1->DATA >> 3 ) & 1;
 		break;
-		case 40:  
-		
-			*red = n;
-			*green = 255;
-			*blue =0;
+		case 1:
+			return (LPC_GPIO2->DATA >> 3 ) & 1;
 		break;
-		case 80:  
-		
-			*red = 0;
-			*green = 255;
-			*blue =n;
+		case 2:
+			return (LPC_GPIO3->DATA >> 0 ) & 1;
 		break;
-		case 120:  
-		
-			*red = 0;
-			*green = n;
-			*blue =255;
+		case 3:
+			return (LPC_GPIO3->DATA >> 1 ) & 1;
 		break;
-		case 160:  
-		
-			*red = n;
-			*green = 0;
-			*blue =255;
-		break;
-		case 200:  
-		
-			*red = 255;
-			*green = 0;
-			*blue =n;
-			break;
 	}
+	return -1;
 }
 
 
-// void sw_init()
-// {
-// 	// Set all 4 as GPI/O
-// 	LPC_IOCON->SWDIO_PIO1_3 = 0x91;
-// 	LPC_IOCON->PIO2_3 = 0x10;
-// 	LPC_IOCON->PIO3_0 = 0x10;
-// 	LPC_IOCON->PIO3_1 = 0x10;
-// 	
-// 	LPC_IOCON->PIO2_9 = 0x10;
-// 	//No need to touch the DIR reg since it should be IN
-// }
-
-// int8_t sw_read(int num)
-// {
-// 	switch (num)
-// 	{
-// 		case 1:
-// 			return (LPC_GPIO1->DATA >> 3 ) & 1;
-// 		break;
-// 		case 2:
-// 			return (LPC_GPIO2->DATA >> 3 ) & 1;
-// 		break;
-// 		case 3:
-// 			return (LPC_GPIO3->DATA >> 0 ) & 1;
-// 		break;
-// 		case 4:
-// 			return (LPC_GPIO3->DATA >> 1 ) & 1;
-// 		break;
-// 		case 5:
-// 			return (LPC_GPIO2->DATA >> 9 ) & 1;
-// 		break;
-// 
-// 	}
-// 	return -1;
-// }
-
-
-
-void MemManage_Handler() {
-	puts("MemM\n");
-}
-void BusFault_Handler() {
-	puts("BusF\n");
-}
-void UsageFault_Handler() {
-	puts("UsagF\n");
-}
-
-void EINT2_Handler(void)
+volatile uint32_t last_motion = 0;
+void PIOINT2_IRQHandler(void)
 {
 	LPC_GPIO2->IC |= (1<<9);
 	puts("MOTION HANDLER2!\n");
+	last_motion = msTicks;
 }
+
+void transfer_to_sleep()
+{
+	while (msTicks > (last_motion + 1000))
+	{
+		WFI;
+	}
+}
+
+void shut_off_supply()
+{
+	LPC_GPIO1->DATA &= ~(1<<5);
+	puts("Turing off Supply\n");
+}
+void turn_on_supply()
+{
+	LPC_GPIO1->DATA |= (1<<5);
+	puts("Turing on Supply\n");
+}
+
 
 // PIO2_9 has the MOTION_DET signal  
 // active low in devel board
-void attach_GPIO_INT()
+void setup_GPIO_INT()
 {
 	LPC_GPIO2->IE |= (1<<9);
 	NVIC_EnableIRQ(EINT2_IRQn);
 }
 
+int white_on = 0;
+int rgb_on = 0;
+int ww_sw_asserted = 0;
+int rgb_sw_asserted = 0;
+int off_sw_asserted = 0;
+uint32_t white_scale = 0;
+uint32_t rgb_scale = 0;
+uint32_t next_run = 0;
 int main(void) {
+	LPC_GPIO2->DIR |= (1<<10);
+	LPC_GPIO2->DATA &= ~(1<<10);
 	/* PLL is already setup */
 	SystemCoreClockUpdate();
-	Custom_Init();
-	SysTick_Config(SystemCoreClock/1000);
+	/* Blue LED Set as output */
+	/* Relay EN Set as output */
+	LPC_GPIO1->DIR |= (1<<5);
 	uartInit(115200);
 	puts("Sys Initted\n");
-	puts("Custom Initted\n");
-	puts("SysTick Initted\n");
 	puts("uart Initted\n");
-		
-	setup_pwm(1000,1023);
+	initSwitch();
+	puts("Switches Initted\n");
+	SysTick_Config(SystemCoreClock/1000);
+	puts("SysTick Initted\n");
+	setup_pwm(1000,4092);
 	puts("PWM Initted\n");
-
-	attach_GPIO_INT();
-
-		
-
+	setup_GPIO_INT();
+	puts("GPIO INT Initted\n");
 	filt_adc_init(4500);
+	delay_ms(500);
+	puts("Filt ADC Initted\n");
 
+
+	while(1)
+	{
+		while(next_run > msTicks)
+			WFI;
+		next_run= msTicks + 10;
+		if ((msTicks - last_motion ) > 
+			MAX(W_POWER_OFF_TIME_MS + RAMP_DOWN_TIME_MS,
+				RGB_POWER_OFF_TIME_MS + RAMP_DOWN_TIME_MS ))
+		{
+			shut_off_supply();
+			transfer_to_sleep();
+			turn_on_supply();
+			/* Wait for the power to actually come on before starting the ramp up */
+		}
+
+		// WW_SWITCH_HANDLER
+		// debounce for 20ms, since we check for the absolute val if the user
+		// holds the switch forever it will only trigger the service once
+		if(getSwitch(WW_SWITCH) == 0)
+		{
+			if(ww_sw_asserted == 5)
+			{
+				puts("WW SWITCH PRESSED\n");
+				white_on = !white_on;
+				white_scale = 0;
+			}
+			ww_sw_asserted += 1;
+			// Might as well update last_motion...
+			last_motion = msTicks;
+		}
+		else
+			ww_sw_asserted = 0;
+
+		// OFF_SWITCH_HANDLER
+		// debounce for 20ms, since we check for the absolute val if the user
+		// holds the switch forever it will only trigger the service once
+		if(getSwitch(OFF_SWITCH) == 0)
+		{
+			if(off_sw_asserted == 5)
+			{
+				puts("OFF SWITCH PRESSED\n");
+				white_on = 0;
+				white_scale = 0;
+				rgb_on = 0;
+				rgb_scale = 0;
+			}
+			off_sw_asserted += 1;
+			// Might as well update last_motion...
+			last_motion = msTicks;
+		}
+		else
+			off_sw_asserted = 0;
+		
+		// RGB_SWITCH_HANDLER
+		// debounce for 20ms, since we check for the absolute val if the user
+		// holds the switch forever it will only trigger the service once
+		if(getSwitch(RGB_SWITCH) == 0)
+		{
+			if(rgb_sw_asserted == 5)
+			{
+				puts("RGB SWITCH PRESSED\n");
+				rgb_on = !rgb_on;
+				rgb_scale = 0;
+			}
+			if(rgb_sw_asserted == 50)
+			{
+				puts("RGB SWITCH HELD\n");
+				rgb_on = 2;
+			}
+			rgb_sw_asserted += 1;
+			// Might as well update last_motion...
+			last_motion = msTicks;
+		}
+		else
+			rgb_sw_asserted = 0;
+
+/* This handles the WW LEDs */
+		if (((msTicks - last_motion ) > W_POWER_OFF_TIME_MS) && white_on)
+		{
+			white_scale = RAMP_DOWN_TIME_MS - ((msTicks - last_motion) - W_POWER_OFF_TIME_MS);
+			if ((msTicks - last_motion) > (W_POWER_OFF_TIME_MS + RAMP_DOWN_TIME_MS))
+				white_scale = 0;
+		}
+		if ( white_scale < RAMP_DOWN_TIME_MS && white_on && ((msTicks - last_motion ) < W_POWER_OFF_TIME_MS))
+		{
+			white_scale = msTicks - last_motion;
+			/* Check just in case we get held up and skip the 1000th ms after motion */
+			if ( white_scale > RAMP_DOWN_TIME_MS)
+				white_scale = RAMP_DOWN_TIME_MS;
+		}
+		if (white_scale != RAMP_DOWN_TIME_MS)
+			setWW( (white_scale * getADCVal(WW_POT)) / RAMP_DOWN_TIME_MS );
+		else
+			setWW(getADCVal(WW_POT));
+		
+			
+
+		/* This handles the RGB LEDs */
+		if (((msTicks - last_motion ) > RGB_POWER_OFF_TIME_MS) && rgb_on)
+		{
+			rgb_scale = RAMP_DOWN_TIME_MS - ((msTicks - last_motion) - RGB_POWER_OFF_TIME_MS);
+			if ((msTicks - last_motion) > (RGB_POWER_OFF_TIME_MS + RAMP_DOWN_TIME_MS))
+				rgb_scale = 0;
+		}
+		if ( rgb_scale < RAMP_DOWN_TIME_MS && rgb_on && ((msTicks - last_motion ) < RGB_POWER_OFF_TIME_MS))
+		{
+			rgb_scale = msTicks - last_motion;
+			/* Check just in case we get held up and skip the 1000th ms after motion */
+			if ( rgb_scale > RAMP_DOWN_TIME_MS)
+				rgb_scale = RAMP_DOWN_TIME_MS;
+		}
+
+		if (rgb_on == )
+		{
+			setRGB(0,0,0);
+		}
+		else if (rgb_on == 1)
+		{
+			if (rgb_scale != RAMP_DOWN_TIME_MS)
+				setRGB((rgb_scale * getADCVal(RED_POT)) / RAMP_DOWN_TIME_MS,
+						(rgb_scale * getADCVal(GREEN_POT)) / RAMP_DOWN_TIME_MS,
+						(rgb_scale * getADCVal(BLUE_POT)) / RAMP_DOWN_TIME_MS );
+			else
+				setRGB(getADCVal(RED_POT), getADCVal(GREEN_POT), getADCVal(BLUE_POT));
+		}
+		else if (rgb_on == 2)
+		{
+			uint32_t R,G,B;
+			h2rgb((msTicks/10)%(H2RGB_OUT_RANGE*6), &R, &G, &B);
+			if (rgb_scale != RAMP_DOWN_TIME_MS)
+				setRGB((rgb_scale * R) / RAMP_DOWN_TIME_MS,
+						(rgb_scale * G) / RAMP_DOWN_TIME_MS,
+						(rgb_scale * B) / RAMP_DOWN_TIME_MS );
+			else
+				setRGB(R, G, B);
+		}
+
+
+
+
+	}
+}
+#if 0
 int i=0;
 
 
-uint8_t R_val,G_val,B_val;
+uint32_t R_val,G_val,B_val,WW_val;
+uint32_t next_run = 0;
 while(1)
 {
-	float val = 120.0 * sin(msTicks/10000.0) + 120.0;
-	h2rgb(val, &R_val, &G_val, &B_val);
-	setRGB(R_val*4,G_val*4,B_val*4);
+	while(next_run > msTicks)
+		WFI;
+	next_run= msTicks + 10;
+	//h2rgb((msTicks/10)%(H2RGB_OUT_RANGE*6), &R_val, &G_val, &B_val);
+	//setRGB(R_val,G_val,B_val);
 
-		//printf("%4d %4d %4d %4d %d\n",R_val,G_val,B_val,(int)val,i++);
+	R_val = getADCVal(0);
+	G_val = getADCVal(1);
+	B_val = getADCVal(2);
+	WW_val = getADCVal(3);
+
+	setRGB(R_val,G_val,B_val);
+	setWW(WW_val);
+	setWW2(WW_val);
+
+		printf("%4d %4d %4d %4d %d\n",R_val,G_val,B_val,WW_val,i++);
 
 
 }
@@ -335,4 +407,4 @@ while(1)
 //     }
 //     return i;
 // }
-
+#endif 

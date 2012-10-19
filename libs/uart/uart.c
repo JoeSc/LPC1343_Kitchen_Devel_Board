@@ -21,7 +21,7 @@ uint8_t rx_buffer_head =0;
 volatile uint8_t rx_buffer_tail = 0;
 #endif
 
-void UART_Handler(void)
+void UART_IRQHandler(void)
 {
 #if ((TX_BUFFER_SIZE > 0) || (RX_BUFFER_SIZE > 0))
     switch(LPC_UART->IIR & IIR_IntId_MASK)

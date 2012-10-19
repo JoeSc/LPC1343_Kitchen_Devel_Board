@@ -32,8 +32,8 @@ void setup_pwm(int freq, int granularity)
 
 	LPC_TMR16B0->MR3 = granularity-1;
 	LPC_TMR16B0->MR2 = granularity;
-	LPC_TMR16B0->MR1 = granularity/2;
-	LPC_TMR16B0->MR0 = granularity/2;
+	LPC_TMR16B0->MR1 = granularity;
+	LPC_TMR16B0->MR0 = granularity;
 
 	LPC_TMR16B0->MCR = (1<<10);
 

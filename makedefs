@@ -40,14 +40,14 @@ LDFLAGS = -mcpu=cortex-m3 -mthumb -Os -nostartfiles -Wl,-MAP=test.map -Wl,--gc-s
 
 LD_PATH = lpc1xxx
 #LD_SCRIPT = $(LD_PATH)/linkscript.ld
-LD_FILE = lpc1343.dld
+LD_FILE = $(LD_PATH)/memory.ld
 
 # OBJCOPY and Flags
 #******************************************************************************
 OBJCOPY=/Users/joeschaack/arm_gcc_work/compiler/bin/arm-none-eabi-objcopy
 OCFLAGS = --strip-unneeded
 OBJDUMP=/Users/joeschaack/arm_gcc_work/compiler/bin/arm-none-eabi-objdump
-ODFLAGS = -d -S
+ODFLAGS = -D -S
 # SIZE
 #******************************************************************************
 SIZE=/Users/joeschaack/arm_gcc_work/compiler/bin/arm-none-eabi-size
