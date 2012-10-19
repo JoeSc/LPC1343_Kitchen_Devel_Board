@@ -24,13 +24,14 @@
 
 volatile uint32_t msTicks = 0;
 volatile uint32_t ledTicks = 0;
+volatile uint32_t ledTick_rate = 500;
 void SysTick_Handler(void) {
 	msTicks++;
 	ledTicks++;
-	if (ledTicks > 500)
+	if (ledTicks > ledTick_rate)
 	{
 		LPC_GPIO2->DATA &= ~(1<<10);
-		if (ledTicks > 501)
+		if (ledTicks > ledTick_rate + 1)
 		{
 			ledTicks = 0;
 			LPC_GPIO2->DATA |= (1<<10);
@@ -85,10 +86,14 @@ void PIOINT2_IRQHandler(void)
 
 void transfer_to_sleep()
 {
+	ledTick_rate = 2000;
+	LPC_SYSCON->PDRUNCFG |= (1<<4);
 	while (msTicks > (last_motion + 1000))
 	{
 		WFI;
 	}
+	ledTick_rate = 500;
+	LPC_SYSCON->PDRUNCFG &= ~(0x1<<4);
 }
 
 void shut_off_supply()
@@ -121,7 +126,6 @@ uint32_t rgb_scale = 0;
 uint32_t next_run = 0;
 int main(void) {
 	LPC_GPIO2->DIR |= (1<<10);
-	LPC_GPIO2->DATA &= ~(1<<10);
 	/* PLL is already setup */
 	SystemCoreClockUpdate();
 	/* Blue LED Set as output */
@@ -138,7 +142,7 @@ int main(void) {
 	puts("PWM Initted\n");
 	setup_GPIO_INT();
 	puts("GPIO INT Initted\n");
-	filt_adc_init(4500);
+	filt_adc_init(450);
 	delay_ms(500);
 	puts("Filt ADC Initted\n");
 
@@ -149,8 +153,8 @@ int main(void) {
 			WFI;
 		next_run= msTicks + 10;
 		if ((msTicks - last_motion ) > 
-			MAX(W_POWER_OFF_TIME_MS + RAMP_DOWN_TIME_MS,
-				RGB_POWER_OFF_TIME_MS + RAMP_DOWN_TIME_MS ))
+			(MAX(W_POWER_OFF_TIME_MS + RAMP_DOWN_TIME_MS,
+				RGB_POWER_OFF_TIME_MS + RAMP_DOWN_TIME_MS ) + 2000))
 		{
 			shut_off_supply();
 			transfer_to_sleep();
@@ -170,8 +174,6 @@ int main(void) {
 				white_scale = 0;
 			}
 			ww_sw_asserted += 1;
-			// Might as well update last_motion...
-			last_motion = msTicks;
 		}
 		else
 			ww_sw_asserted = 0;
@@ -190,8 +192,6 @@ int main(void) {
 				rgb_scale = 0;
 			}
 			off_sw_asserted += 1;
-			// Might as well update last_motion...
-			last_motion = msTicks;
 		}
 		else
 			off_sw_asserted = 0;
@@ -213,8 +213,6 @@ int main(void) {
 				rgb_on = 2;
 			}
 			rgb_sw_asserted += 1;
-			// Might as well update last_motion...
-			last_motion = msTicks;
 		}
 		else
 			rgb_sw_asserted = 0;
@@ -234,9 +232,15 @@ int main(void) {
 				white_scale = RAMP_DOWN_TIME_MS;
 		}
 		if (white_scale != RAMP_DOWN_TIME_MS)
+		{
 			setWW( (white_scale * getADCVal(WW_POT)) / RAMP_DOWN_TIME_MS );
+			setWW2( (white_scale * getADCVal(WW_POT)) / RAMP_DOWN_TIME_MS );
+		}
 		else
+		{
 			setWW(getADCVal(WW_POT));
+			setWW2(getADCVal(WW_POT));
+		}
 		
 			
 
@@ -255,11 +259,7 @@ int main(void) {
 				rgb_scale = RAMP_DOWN_TIME_MS;
 		}
 
-		if (rgb_on == )
-		{
-			setRGB(0,0,0);
-		}
-		else if (rgb_on == 1)
+		if (rgb_on == 1 || rgb_on == 0)
 		{
 			if (rgb_scale != RAMP_DOWN_TIME_MS)
 				setRGB((rgb_scale * getADCVal(RED_POT)) / RAMP_DOWN_TIME_MS,
@@ -271,7 +271,7 @@ int main(void) {
 		else if (rgb_on == 2)
 		{
 			uint32_t R,G,B;
-			h2rgb((msTicks/10)%(H2RGB_OUT_RANGE*6), &R, &G, &B);
+			h2rgb((msTicks)%(H2RGB_OUT_RANGE*6), &R, &G, &B);
 			if (rgb_scale != RAMP_DOWN_TIME_MS)
 				setRGB((rgb_scale * R) / RAMP_DOWN_TIME_MS,
 						(rgb_scale * G) / RAMP_DOWN_TIME_MS,
