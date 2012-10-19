@@ -9,8 +9,8 @@
 #define MAX(a,b) (((a)>(b))?(a):(b))
 #define WFI asm volatile ("wfi");
 #define RAMP_DOWN_TIME_MS (1000)
-#define RGB_POWER_OFF_TIME_MS (10*1000)
-#define W_POWER_OFF_TIME_MS (5*1000)
+#define RGB_POWER_OFF_TIME_MS (60*1000)
+#define W_POWER_OFF_TIME_MS (30*1000)
 
 #define OFF_SWITCH (2)
 #define WW_SWITCH (3)
@@ -124,6 +124,8 @@ int off_sw_asserted = 0;
 uint32_t white_scale = 0;
 uint32_t rgb_scale = 0;
 uint32_t next_run = 0;
+uint32_t rgb_mode_3_next_change = 0;
+uint32_t rgb_mode_3_color = 0;
 int main(void) {
 	LPC_GPIO2->DIR |= (1<<10);
 	/* PLL is already setup */
@@ -207,10 +209,15 @@ int main(void) {
 				rgb_on = !rgb_on;
 				rgb_scale = 0;
 			}
-			if(rgb_sw_asserted == 50)
+			if(rgb_sw_asserted == 100)
 			{
 				puts("RGB SWITCH HELD\n");
 				rgb_on = 2;
+			}
+			if(rgb_sw_asserted == 500)
+			{
+				puts("RGB SWITCH LONG HELD\n");
+				rgb_on = 3;
 			}
 			rgb_sw_asserted += 1;
 		}
@@ -272,6 +279,26 @@ int main(void) {
 		{
 			uint32_t R,G,B;
 			h2rgb((msTicks)%(H2RGB_OUT_RANGE*6), &R, &G, &B);
+			if (rgb_scale != RAMP_DOWN_TIME_MS)
+				setRGB((rgb_scale * R) / RAMP_DOWN_TIME_MS,
+						(rgb_scale * G) / RAMP_DOWN_TIME_MS,
+						(rgb_scale * B) / RAMP_DOWN_TIME_MS );
+			else
+				setRGB(R, G, B);
+		}
+		else if (rgb_on == 3)
+		{
+			uint32_t R,G,B;
+			if (rgb_mode_3_next_change < msTicks)
+			{
+				rgb_mode_3_next_change = msTicks + (getADCVal(RED_POT)/4);
+				rgb_mode_3_color += 2;
+				if(rgb_mode_3_color >6)
+					rgb_mode_3_color = 0;
+
+			}
+		
+			h2rgb((H2RGB_OUT_RANGE * rgb_mode_3_color), &R, &G, &B);
 			if (rgb_scale != RAMP_DOWN_TIME_MS)
 				setRGB((rgb_scale * R) / RAMP_DOWN_TIME_MS,
 						(rgb_scale * G) / RAMP_DOWN_TIME_MS,
