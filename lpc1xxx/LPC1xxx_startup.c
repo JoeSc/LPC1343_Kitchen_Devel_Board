@@ -27,6 +27,7 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  *
  */
+#include "LPC13xx.h"
 
 // These are defined and created by the linker, locating them in memory
 extern unsigned char _etext;

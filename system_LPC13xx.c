@@ -140,7 +140,7 @@
 #define SYSOSCCTRL_Val        0x00000000
 #define WDTOSC_SETUP          0
 #define WDTOSCCTRL_Val        0x000000A0
-#define SYSPLLCLKSEL_Val      0x00000001 //0=IRC 1=SYSOSC
+#define SYSPLLCLKSEL_Val      0x00000000 //0=IRC 1=SYSOSC
 #define SYSPLL_SETUP          1
 #define SYSPLLCTRL_Val        0x00000025
 #define MAINCLKSEL_Val        0x00000003
