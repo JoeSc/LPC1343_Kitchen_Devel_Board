@@ -9,8 +9,8 @@
 #define MAX(a,b) (((a)>(b))?(a):(b))
 #define WFI asm volatile ("wfi");
 #define RAMP_DOWN_TIME_MS (1000)
-#define RGB_POWER_OFF_TIME_MS (60*1000)
-#define W_POWER_OFF_TIME_MS (30*1000)
+#define RGB_POWER_OFF_TIME_MS (10*1000)
+#define W_POWER_OFF_TIME_MS (5*1000)
 
 #define OFF_SWITCH (2)
 #define WW_SWITCH (3)
@@ -293,7 +293,7 @@ int main(void) {
 			{
 				rgb_mode_3_next_change = msTicks + (getADCVal(RED_POT)/4);
 				rgb_mode_3_color += 2;
-				if(rgb_mode_3_color >6)
+				if(rgb_mode_3_color >=6)
 					rgb_mode_3_color = 0;
 
 			}
