@@ -10,16 +10,11 @@ CFLAGS+= $(INCLUDE)
 
 CFLAGS+=-D'BAUDRATE=115200'
 
-VPATH=lpc1xxx:libs:core
+VPATH=lpc1xxx:libs
 VPATH+=$(addprefix :, $(INCLUDEDIRS))
 
-OBJFILES = LPC1xxx_startup.o LPC13xx_handlers.o core_cm3.o system_LPC13xx.o main.o uart.o h2rgb.o pwm.o filt_adc.o
-#OBJFILES += ledTask.o radioTask.o flightTask.o 
-#OBJFILES += rc_pwm.o i2c.o bma180.o itg3200.o hmc5843.o
-#OBJFILES += fixed_DCM.o fix16.o fix16_sqrt.o fix16_trig.o
-#OBJFILES += pid.o
-#SRCS = $(shell find CoOS | grep "\.c$$" | xargs basename)
-#OBJFILES+= $(SRCS:.c=.o)
+OBJFILES = LPC1xxx_startup.o LPC13xx_handlers.o core_cm3.o system_LPC13xx.o main.o
+OBJFILES += cdc_buf.o cdcuser.o usbcore.o usbdesc.o usbhw.o usbuser.o
 
 OBJS = $(addprefix ${OBJFOLDER}/, $(OBJFILES))
 

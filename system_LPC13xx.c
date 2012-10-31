@@ -148,12 +148,12 @@
 // ******** Code Red *********
 // * Changed USBCLK_SETUP to 0
 // ***************************
-#define USBCLK_SETUP          0
-#define USBPLL_SETUP          0
+#define USBCLK_SETUP          1
+#define USBPLL_SETUP          1
 #define USBPLLCLKSEL_Val      0x00000001
 #define USBPLLCTRL_Val        0x00000003
 #define SYSAHBCLKDIV_Val      0x00000001
-#define AHBCLKCTRL_Val        0x0001005F
+#define AHBCLKCTRL_Val        0x0001405F
 
 /*--------------------- Memory Mapping Configuration -------------------------
 //
@@ -468,6 +468,7 @@ void SystemInit (void)
   LPC_SYSCON->USBPLLCTRL    = USBPLLCTRL_Val;
   while (!(LPC_SYSCON->USBPLLSTAT   & 0x01));     /* Wait Until PLL Locked    */
   LPC_SYSCON->USBCLKSEL     = 0x00;               /* Select USB PLL           */
+  LPC_SYSCON->USBCLKDIV     = 0x01;               /* Select USB PLL           */
 #else
   LPC_SYSCON->USBCLKSEL     = 0x01;               /* Select Main Clock        */
 #endif
